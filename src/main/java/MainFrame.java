@@ -2,19 +2,28 @@
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
+import java.util.ArrayList;
 
 import Lab4.TextureReader;
+import Lab5.astro.PolarProjectionMap;
 import com.jogamp.opengl.*;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.fixedfunc.GLMatrixFunc;
 import com.jogamp.opengl.glu.GLU;
 import com.jogamp.opengl.util.Animator;
+import com.jogamp.opengl.util.gl2.GLUT;
 
 public class MainFrame extends JFrame implements GLEventListener {
 
     private GLCanvas canvas;
     private Animator animator;
     double equation[] = {1f, 1f, 1f, 1f};
+
+    private GLUT glut;
+
+    private PolarProjectionMap ppm = null;
+    // Used to identify the display list.
+    private int ppm_list;
 
     public MainFrame() {
         super("Java OpenGL");
@@ -58,6 +67,64 @@ public class MainFrame extends JFrame implements GLEventListener {
         this.animator.start();
     }
 
+    // We use this method for creating the display list.
+    private void makePPM(GL2 gl) {
+        final ArrayList<PolarProjectionMap.ConstellationLine> clLines = this.ppm.getConLines();
+        // Add here the rest of the ArrayLists.
+
+        gl.glColor3f(0.0f, 1.0f, 0.0f);
+
+        gl.glBegin(GL2.GL_LINES);
+        for (PolarProjectionMap.ConstellationLine cl : clLines) {
+            if (cl.isVisible()) {
+                gl.glVertex2d(cl.getPosX1(), cl.getPosY1());
+                gl.glVertex2d(cl.getPosX2(), cl.getPosY2());
+            }
+        }
+        gl.glEnd();
+
+        // Add here the rest of the code for rendering constellation boundaries (use GL_LINES),
+        // names (use glutBitmapString), stars (use GL_POINTS) and cardinal points (use glutBitmapString).
+        for (PolarProjectionMap.ConstellationName cl : ppm.getConNames()) {
+            if (cl.isVisible()) {
+                gl.glRasterPos2d(cl.getPosX(), cl.getPosY());
+                // Render the text in the scene.
+                glut.glutBitmapString(GLUT.BITMAP_HELVETICA_10, cl.getName());
+
+            }
+        }
+        gl.glBegin(GL2.GL_POINTS);
+        for (PolarProjectionMap.ConstellationStar cl : ppm.getConStars()) {
+            if (cl.isVisible()) {
+                gl.glVertex2d(cl.getPosX(), cl.getPosY());
+
+            }
+        }
+        gl.glEnd();
+
+        gl.glBegin(GL2.GL_LINES);
+        for (PolarProjectionMap.ConstellationBoundaryLine cl : ppm.getConBoundaryLines()) {
+            if (cl.isVisible()) {
+                gl.glVertex3d(cl.getPosX1(), cl.getPosY1(),cl.getPosZ1());
+                gl.glVertex3d(cl.getPosX2(), cl.getPosY2(),cl.getPosZ2());
+
+            }
+        }
+        gl.glEnd();
+
+        for (PolarProjectionMap.MessierData cl : ppm.getMessierObjects()) {
+            if (cl.isVisible()) {
+                gl.glRasterPos2d(cl.getX(), cl.getY());
+                // Render the text in the scene.
+                glut.glutBitmapString(GLUT.BITMAP_HELVETICA_10, cl.getName());
+                glut.glutBitmapString(GLUT.BITMAP_HELVETICA_10, String.valueOf(cl.getMagnitude()));
+                glut.glutBitmapString(GLUT.BITMAP_HELVETICA_10, String.valueOf(cl.getDec()));
+                glut.glutBitmapString(GLUT.BITMAP_HELVETICA_10, String.valueOf(cl.getRA()));
+
+            }
+        }
+    }
+
     @Override
     public void init(GLAutoDrawable glAutoDrawable) {
         GL2 gl = canvas.getGL().getGL2();
@@ -74,46 +141,33 @@ public class MainFrame extends JFrame implements GLEventListener {
 
         gl.glClipPlane(GL2.GL_CLIP_PLANE1, equation, 0);
 
-//        gl.glEnable(GL.GL_LINE_SMOOTH);
-
-        // Activate the GL_BLEND state variable. Means activating blending.
-//        gl.glEnable(GL.GL_BLEND);
-//
-//        glu = GLU.createGLU();
-//
-//        // Generate a name (id) for the texture.
-//        // This is called once in init no matter how many textures we want to generate in the texture vector
-//        gl.glGenTextures(NO_TEXTURES, texture, 0);
-//
-//        // Define the filters used when the texture is scaled.
-//        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
-//        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
-//
-//        // Do not forget to enable texturing.
-//        gl.glEnable(GL.GL_TEXTURE_2D);
-
-        // The following lines are for creating ONE texture
-        // If you want TWO textures modify NO_TEXTURES=2 and copy-paste again the next lines of code
-        // up until (and including) this.makeRGBTexture(...)
-        // Modify texture[0] and tex[0] to texture[1] and tex[1] in the new code and that's it
 
         // Bind (select) the texture.
         gl.glBindTexture(GL.GL_TEXTURE_2D, texture[0]);
 
-        // Read the texture from the image.
-//        afisarePoza("Texturi/textura1.jpg");
-//        try {
-//            tex[0] = TextureReader.readTexture("Texturi/textura1.jpg");
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            throw new RuntimeException(e);
-//        }
-//
-//        // Construct the texture and use mipmapping in the process.
-//        this.makeRGBTexture(gl, glu, tex[0], GL.GL_TEXTURE_2D, true);
-//
-//        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
-//        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE);
+
+        glut = new GLUT();
+
+        // Initialize the object.
+        this.ppm = new PolarProjectionMap(21.53, 45.17);
+        // Set the separator for the line fields.
+        this.ppm.setFileSep(",");
+        // Read the file and compute the coordinates.
+        this.ppm.initializeConstellationLines("data/conlines.dat");
+        this.ppm.initializeConstellationStars("data/beyer.dat");
+        this.ppm.initializeConstellationNames("data/cnames.dat");
+        this.ppm.initializeConstellationBoundaries("data/cbounds.dat");
+        this.ppm.initializeMessierObjects("data/messier.dat");
+        // Initialize here the rest of the elements from the remaining files using the corresponding methods.
+
+        // Create the display list.
+        this.ppm_list = gl.glGenLists(1);
+        gl.glNewList(this.ppm_list, gl.GL_COMPILE);
+        this.makePPM(gl);
+        gl.glEndList();
+
+
+
     }
 
 
@@ -130,76 +184,17 @@ public class MainFrame extends JFrame implements GLEventListener {
 
     }
 
-    public void afisarePoza(String path) {
-
-        GL2 gl = canvas.getGL().getGL2();
-        gl.glEnable(GL.GL_BLEND);
-
-        glu = GLU.createGLU();
-
-        // Generate a name (id) for the texture.
-        // This is called once in init no matter how many textures we want to generate in the texture vector
-        gl.glGenTextures(NO_TEXTURES, texture, 0);
-
-        // Define the filters used when the texture is scaled.
-        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
-        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
-
-        // Do not forget to enable texturing.
-        gl.glEnable(GL.GL_TEXTURE_2D);
-        try {
-            tex[0] = TextureReader.readTexture(path);
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-
-        // Construct the texture and use mipmapping in the process.
-        this.makeRGBTexture(gl, glu, tex[0], GL.GL_TEXTURE_2D, true);
-
-        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
-        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE);
-    }
-
-    public void chess() {
-        GL2 gl = canvas.getGL().getGL2();
-        gl.glBindTexture(GL.GL_TEXTURE_2D, texture[0]);
-
-        // Draw a square and apply a texture on it.
-        // Lower left corner.
-
-        for (int i = 0; i < 8; i++) {
-            for (int j = 0; j < 8; j++) {
-                gl.glBegin(GL2.GL_QUADS);
-
-                gl.glTexCoord2f(0.0f + j + 2, 0.0f + i + 2);
-                gl.glVertex2f(1.1f + j + 2, 1.1f + i + 2);
-
-                // Lower right corner.
-                gl.glTexCoord2f(1.0f + j + 2, 0.0f + i + 2);
-                gl.glVertex2f(1.9f + j + 2, 1.1f + i + 2);
-
-                // Upper right corner.
-                gl.glTexCoord2f(1.0f + j + 2, 1.0f + i + 2);
-                gl.glVertex2f(1.9f + j + 2, 1.9f + i + 2);
-
-                // Upper left corner.
-                gl.glTexCoord2f(0.0f + j + 2, 1.0f + i + 2);
-                gl.glVertex2f(1.1f + j + 2, 1.9f + i + 2);
-                gl.glEnd();
-                if ((i + j) % 2 == 0) {
-                    afisarePoza("Texturi/textura1.jpg");
-                } else {
-                    afisarePoza("Texturi/textura2.jpg");
-
-                }
-            }
-        }
-    }
-
     @Override
     public void display(GLAutoDrawable glAutoDrawable) {
-        chess();
+        GL2 gl = canvas.getGL().getGL2();
+
+// Specify the raster position.
+        gl.glRasterPos2d(0.5, 0.5);
+        // Render the text in the scene.
+        glut.glutBitmapString(GLUT.BITMAP_HELVETICA_10, "Hello World");
+
+        gl.glCallList(this.ppm_list);
+
     }
 
     @Override
@@ -217,7 +212,7 @@ public class MainFrame extends JFrame implements GLEventListener {
         if (ratio < 1) {
             gl.glOrtho(0, 1, 0, 1 / ratio, -1, 1);
         } else {
-            gl.glOrtho(0, 15, 0, 15, -1, 1);
+            gl.glOrtho(0, 1, 0, 1, -1, 1);
         }
 
         gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
